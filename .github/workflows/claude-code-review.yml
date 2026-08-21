@@ -1,0 +1,48 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Please review this pull request and look for bugs, correctness issues,
+            and potential improvements. Only report on issues you find, being as
+            concise as possible. It's OK to leave a comment saying you found no
+            problems if that is the case.
+
+          # Optional: Customize review based on file types
+          # direct_prompt: |
+          #   Review this PR for:
+          #   - Code quality and best practices
+          #   - Potential bugs or edge cases
+          #   - Performance considerations
+          #   - Security implications
+          #   - Test coverage
+
+          # Optional: Configure Claude's behavior with CLI arguments
+          # claude_args: |
+          #   --allowedTools "Bash(npm install),Bash(npm run build),Bash(npm run test:*)"
