@@ -36,6 +36,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - Tablero de **10 × 20** celdas.
 - Las **7 piezas estándar** (I, O, T, S, Z, J, L) con colores diferenciados.
 - Pieza reto **`N` (tuerca)**: una pieza de 3×3 con un hueco vacío en el centro, rodeado por sus propios bloques. Al fijarse, esa celda central queda inaccesible para el resto de piezas, así que la fila que la contiene no puede completarse hasta que el resto del tablero a su alrededor se despeje.
+- **Power-up bomba**: cada `5` líneas eliminadas, la siguiente pieza es una bomba (bloque único con animación de pulso). Al fijarse, en vez de sumarse al tablero, destruye un área de **3×3** centrada en su posición de aterrizaje y suma puntos extra por celda despejada.
 - **Rotación** con _wall kicks_ básicos (pequeños desplazamientos para que la pieza pueda rotar pegada a la pared).
 - **Soft drop** (bajada acelerada) y **hard drop** (caída instantánea).
 - **Pieza fantasma** (_ghost piece_): muestra dónde aterrizará la pieza actual.
@@ -119,6 +120,7 @@ Contiene toda la lógica del juego. A grandes rasgos:
 - **Puntuación**: usa la tabla clásica `[0, 100, 300, 500, 800]` multiplicada por el nivel actual; el hard drop suma 2 puntos por celda recorrida y el soft drop 1 punto por fila.
 - **Nivel y velocidad**: el nivel sube cada 10 líneas; la velocidad de caída se calcula como `max(100, 1000 − (level − 1) × 90)` milisegundos.
 - **Ghost piece** (`ghostY`): proyecta la posición final de la pieza actual hacia abajo y la dibuja con `globalAlpha = 0.2`.
+- **Power-up bomba** (`randomPiece(forceBomb)`, `explodeBomb`, `drawBombBlock`, `drawExplosion`): `clearLines` detecta cuándo el contador de `lines` cruza un múltiplo de `BOMB_LINES_INTERVAL` (5) y marca `bombPending`; `spawn` consume esa marca para generar la siguiente pieza como bomba (un único bloque con color especial `BOMB_COLOR`, dibujado con un pulso). Al fijarse, `lockPiece` la enruta a `explodeBomb()` en vez de `merge()`: vacía las celdas del área 3×3 centrada en su posición final (recortada a los bordes del tablero), suma `BOMB_SCORE_PER_CELL` puntos por celda despejada y guarda el estado en `explosion` para que `draw()` dibuje un breve destello (`drawExplosion`, con fade-out de `EXPLOSION_DURATION` ms).
 - **Tema claro/oscuro** (`applyTheme`): alterna la clase `light` en `<body>` según el estado del switch `#theme-toggle`, persiste la elección en `localStorage` (clave `theme`) y por defecto usa modo oscuro si no hay preferencia guardada. El color de la grilla del canvas (`drawGrid`) se lee dinámicamente de la variable CSS `--grid-line-color` para respetar el tema activo.
 
 ### Flujo del juego
@@ -176,9 +178,11 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 8 colores             |
+| `COLORS`       | Paleta de colores por tipo de pieza      | 9 colores (incl. bomba) |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
+| `BOMB_LINES_INTERVAL` | Líneas entre apariciones de la bomba | `5`             |
+| `BOMB_SCORE_PER_CELL` | Puntos por celda destruida por la bomba | `20`         |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
 

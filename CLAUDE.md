@@ -30,6 +30,7 @@ All game logic lives in the single file `game.js` (~300 lines), driven by a `req
 - **Locking a piece** (`lockPiece`): `merge()` writes the piece into `board`, then `clearLines()` removes completed rows (scanning bottom-up, re-checking the same row index after a splice/unshift), then `spawn()` promotes `next` to `current` and generates a new `next`. If the newly spawned piece immediately collides, `endGame()` fires.
 - **Scoring/leveling**: `LINE_SCORES = [0, 100, 300, 500, 800]` multiplied by `level`; hard drop adds 2 pts/row dropped, soft drop adds 1 pt/row. `level` increments every 10 lines; `dropInterval = max(100, 1000 - (level-1)*90)` ms.
 - **Ghost piece** (`ghostY`): projects the current piece straight down until it would collide, drawn at `globalAlpha = 0.2`.
+- **Bomb power-up**: `clearLines()` compares `floor(lines / BOMB_LINES_INTERVAL)` before/after incrementing `lines` and sets `bombPending` when it crosses a multiple (every 5 lines by default). `spawn()` consumes that flag via `randomPiece(bombPending)` to generate the *next* piece as a bomb — a single-cell shape `[[BOMB_COLOR]]` (`BOMB_COLOR` is the last `COLORS` index), rendered with a pulsing circle (`drawBombBlock`) instead of a normal block. `lockPiece()` routes a bomb (`current.isBomb`) to `explodeBomb()` instead of `merge()`: it zeroes out the 3×3 area centered on the bomb's landed `(x, y)` (clamped to board bounds), awards `BOMB_SCORE_PER_CELL` points per cleared cell, and records the affected cells in `explosion` so `draw()` renders a fading flash (`drawExplosion`, `EXPLOSION_DURATION` ms) before continuing to `clearLines()`/`spawn()` as usual. The bomb never gets merged into `board`, so it can't itself become a stuck/unclearable cell.
 - **Global mutable state**: `board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId` are module-level `let` bindings reset by `init()` (also wired to the restart button).
 - **Input**: a single `keydown` listener dispatches on `e.code` (arrows, `KeyX` rotate, `Space` hard drop, `KeyP` pause); ignored while paused or game over (except unpause).
 
@@ -37,6 +38,6 @@ All game logic lives in the single file `game.js` (~300 lines), driven by a `req
 
 ### Tunable constants (in `game.js`)
 
-`COLS`, `ROWS`, `BLOCK`, `COLORS`, `LINE_SCORES`, `dropInterval`. If `COLS`/`ROWS`/`BLOCK` change, update the `#board` canvas `width`/`height` in `index.html` to match (`COLS×BLOCK` by `ROWS×BLOCK`).
+`COLS`, `ROWS`, `BLOCK`, `COLORS`, `LINE_SCORES`, `dropInterval`, `BOMB_LINES_INTERVAL`, `BOMB_SCORE_PER_CELL`, `EXPLOSION_DURATION`. If `COLS`/`ROWS`/`BLOCK` change, update the `#board` canvas `width`/`height` in `index.html` to match (`COLS×BLOCK` by `ROWS×BLOCK`).
 
 The README (in Spanish) has additional detail and is kept in sync with this architecture description — update both if the game logic changes structurally.
