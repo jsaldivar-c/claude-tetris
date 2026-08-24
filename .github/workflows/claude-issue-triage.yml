@@ -71,6 +71,10 @@ jobs:
                explícitamente en el comentario y pide los datos que faltan (pasos
                para reproducir, navegador, etc.) en vez de inventar un diagnóstico.
 
+               El comentario debe estar escrito en formato Markdown válido y bien
+               interpretable por GitHub (encabezados, listas, `código en línea`,
+               bloques de código con triple backtick, etc. según corresponda).
+
             IMPORTANTE:
             - No implementes la solución ni propongas código.
             - No modifiques archivos del repositorio.
