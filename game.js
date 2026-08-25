@@ -57,7 +57,11 @@ const startLevelSelect = document.getElementById('start-level-select');
 
 const START_LEVEL_KEY = 'tetris-start-level';
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, bombPending, explosion;
+let board, current, next, score, lines, level, startLevel, paused, gameOver, lastTime, dropAccum, dropInterval, animId, bombPending, explosion;
+
+function dropIntervalForLevel(lvl) {
+  return Math.max(100, 1000 - (lvl - 1) * 90);
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -127,8 +131,8 @@ function clearLines() {
     const prevLines = lines;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    level = startLevel + Math.floor(lines / 10);
+    dropInterval = dropIntervalForLevel(level);
     if (Math.floor(lines / BOMB_LINES_INTERVAL) > Math.floor(prevLines / BOMB_LINES_INTERVAL)) {
       bombPending = true;
     }
@@ -355,10 +359,11 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = getStartLevel();
+  startLevel = getStartLevel();
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  dropInterval = dropIntervalForLevel(level);
   dropAccum = 0;
   lastTime = performance.now();
   bombPending = false;
@@ -403,9 +408,7 @@ resumeBtn.addEventListener('click', () => {
   if (paused) togglePause();
 });
 
-pauseRestartBtn.addEventListener('click', () => {
-  init();
-});
+pauseRestartBtn.addEventListener('click', init);
 
 toggleControlsBtn.addEventListener('click', () => {
   const nowHidden = pauseControlsList.classList.toggle('hidden');
