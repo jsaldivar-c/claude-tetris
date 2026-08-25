@@ -180,6 +180,24 @@ body {
   transform: translateX(18px);
 }
 
+/* ---- Selector de skin ---- */
+.skin-select select {
+  width: 100%;
+  background: var(--kbd-bg);
+  color: var(--value-color);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.skin-select select:focus {
+  outline: 1px solid var(--switch-knob);
+}
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;

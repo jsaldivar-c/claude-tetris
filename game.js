@@ -4,7 +4,13 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
+// SKINS: registry of visual palettes. Each palette has the same length/index
+// scheme as the original flat COLORS array (0 = empty, 1-8 = piece colors,
+// 9 = bomb color), so BOMB_COLOR stays valid across every skin. `drawBlock`
+// looks up colors via currentColors() instead of a fixed COLORS binding, and
+// branches on `activeSkin` to pick a rendering style per skin. drawBombBlock,
+// drawExplosion and drawGrid are intentionally shared/unchanged across skins.
+const RETRO_COLORS = [
   null,
   '#4dd0e1', // I - cyan
   '#ffd54f', // O - yellow
@@ -17,7 +23,52 @@ const COLORS = [
   '#ff6e40', // bomb ring color
 ];
 
-const BOMB_COLOR = COLORS.length - 1;
+const SKINS = {
+  retro: {
+    colors: RETRO_COLORS,
+  },
+  neon: {
+    colors: [
+      null,
+      '#00f0ff', // I - electric cyan
+      '#faff00', // O - electric yellow
+      '#e000ff', // T - electric magenta
+      '#00ff85', // S - electric green
+      '#ff0044', // Z - electric red
+      '#2979ff', // J - electric blue
+      '#ff8800', // L - electric orange
+      '#e0e0e0', // N - bright silver
+      '#ff3d00', // bomb ring color
+    ],
+  },
+  pastel: {
+    colors: [
+      null,
+      '#b2ebf2', // I - soft cyan
+      '#fff9c4', // O - soft yellow
+      '#e1bee7', // T - soft purple
+      '#c8e6c9', // S - soft green
+      '#ffcdd2', // Z - soft red
+      '#bbdefb', // J - soft blue
+      '#ffe0b2', // L - soft orange
+      '#eceff1', // N - soft gray
+      '#ffab91', // bomb ring color
+    ],
+  },
+  pixel: {
+    // Same palette as retro — the pixel-art look comes from the texture
+    // pattern drawn on top of the block, not from a different palette.
+    colors: RETRO_COLORS,
+  },
+};
+
+let activeSkin = 'retro';
+
+function currentColors() {
+  return SKINS[activeSkin].colors;
+}
+
+const BOMB_COLOR = RETRO_COLORS.length - 1;
 const BOMB_LINES_INTERVAL = 5; // every N lines cleared, next spawn is a bomb
 const BOMB_SCORE_PER_CELL = 20;
 const EXPLOSION_DURATION = 300; // ms, fade-out of the blast flash
@@ -48,6 +99,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, bombPending, explosion;
 
@@ -194,23 +246,91 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function drawRetroBlock(context, x, y, color, size) {
+  context.fillStyle = color;
+  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  // highlight
+  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+}
+
+function drawNeonBlock(context, x, y, color, size) {
+  context.shadowBlur = 14;
+  context.shadowColor = color;
+  context.fillStyle = color;
+  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  context.shadowBlur = 0; // must reset: shadow state persists across draw calls otherwise
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = 1;
+  context.strokeRect(x * size + 1.5, y * size + 1.5, size - 3, size - 3);
+}
+
+function drawPastelBlock(context, x, y, color, size) {
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const w = size - 2;
+  const h = size - 2;
+  const radius = size * 0.2;
+  context.fillStyle = color;
+  if (typeof context.roundRect === 'function') {
+    context.beginPath();
+    context.roundRect(px, py, w, h, radius);
+    context.fill();
+  } else {
+    context.fillRect(px, py, w, h);
+  }
+}
+
+function drawPixelBlock(context, x, y, color, size) {
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const w = size - 2;
+  const h = size - 2;
+  context.fillStyle = color;
+  context.fillRect(px, py, w, h);
+  // deterministic pixel-art texture: 3x3 sub-grid, alternating shade
+  const sub = 3;
+  const subW = w / sub;
+  const subH = h / sub;
+  for (let sr = 0; sr < sub; sr++) {
+    for (let sc = 0; sc < sub; sc++) {
+      context.fillStyle = (x + y + sr + sc) % 2 === 0
+        ? 'rgba(255,255,255,0.10)'
+        : 'rgba(0,0,0,0.10)';
+      context.fillRect(px + sc * subW, py + sr * subH, subW, subH);
+    }
+  }
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   if (colorIndex === BOMB_COLOR) {
     drawBombBlock(context, x, y, size, alpha);
     return;
   }
-  const color = COLORS[colorIndex];
+  const color = currentColors()[colorIndex];
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  context.shadowBlur = 0;
+  switch (activeSkin) {
+    case 'neon':
+      drawNeonBlock(context, x, y, color, size);
+      break;
+    case 'pastel':
+      drawPastelBlock(context, x, y, color, size);
+      break;
+    case 'pixel':
+      drawPixelBlock(context, x, y, color, size);
+      break;
+    case 'retro':
+    default:
+      drawRetroBlock(context, x, y, color, size);
+      break;
+  }
   context.globalAlpha = 1;
 }
 
 function drawBombBlock(context, x, y, size, alpha) {
+  context.shadowBlur = 0; // guard against a neon block leaving shadow state set
   const cx = x * size + size / 2;
   const cy = y * size + size / 2;
   const pulse = 0.8 + 0.2 * Math.sin(performance.now() / 120);
@@ -220,7 +340,7 @@ function drawBombBlock(context, x, y, size, alpha) {
   context.arc(cx, cy, (size / 2 - 3) * pulse, 0, Math.PI * 2);
   context.fill();
   context.lineWidth = 2;
-  context.strokeStyle = COLORS[BOMB_COLOR];
+  context.strokeStyle = currentColors()[BOMB_COLOR];
   context.stroke();
   context.strokeStyle = '#ffd54f';
   context.beginPath();
@@ -397,6 +517,28 @@ themeToggle.addEventListener('change', () => {
   applyTheme(theme);
 });
 
+function applySkin(skin) {
+  activeSkin = SKINS[skin] ? skin : 'retro';
+  skinSelect.value = activeSkin;
+  if (current) {
+    draw();
+    drawNext();
+  }
+}
+
+skinSelect.addEventListener('change', () => {
+  const skin = skinSelect.value;
+  localStorage.setItem('tetris-skin', skin);
+  applySkin(skin);
+});
+
+// While the select is focused, its own arrow-key handling (cycling options)
+// would otherwise also bubble up to the document keydown listener and drive
+// gameplay (move/rotate/soft-drop) at the same time. Stop it at the source
+// instead of touching the shared document listener.
+skinSelect.addEventListener('keydown', e => e.stopPropagation());
+
 applyTheme(localStorage.getItem('theme') || 'dark');
+applySkin(localStorage.getItem('tetris-skin') || 'retro');
 
 init();
