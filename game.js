@@ -22,6 +22,11 @@ const BOMB_LINES_INTERVAL = 5; // every N lines cleared, next spawn is a bomb
 const BOMB_SCORE_PER_CELL = 20;
 const EXPLOSION_DURATION = 300; // ms, fade-out of the blast flash
 
+const LEADERBOARD_KEY = 'tetris-leaderboard';
+const BEST_COMBO_KEY = 'tetris-best-combo';
+const MAX_LINES_KEY = 'tetris-max-lines';
+const NEW_RECORD_HIGHLIGHT_MS = 5000; // how long the new leaderboard row stays highlighted
+
 const PIECES = [
   null,
   [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
@@ -48,11 +53,133 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const leaderboardListEl = document.getElementById('leaderboard-list');
+const bestComboEl = document.getElementById('best-combo');
+const maxLinesEl = document.getElementById('max-lines');
+const resetLeaderboardBtn = document.getElementById('reset-leaderboard-btn');
+const newRecordBox = document.getElementById('new-record-box');
+const playerNameInput = document.getElementById('player-name-input');
+const saveRecordBtn = document.getElementById('save-record-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, bombPending, explosion;
+let highlightTimeoutId = null;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+}
+
+// Small wrappers so a blocked/unavailable localStorage (private browsing,
+// quota exceeded, storage disabled, ...) degrades gracefully instead of
+// throwing out of gameplay code paths like clearLines()/lockPiece().
+function safeGetInt(key) {
+  try {
+    return parseInt(localStorage.getItem(key), 10) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    // ignore: nothing we can do if storage is unavailable
+  }
+}
+
+function safeRemoveItem(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    // ignore
+  }
+}
+
+function sortAndTrim(list) {
+  return [...list].sort((a, b) => (b && b.score || 0) - (a && a.score || 0)).slice(0, 5);
+}
+
+function loadLeaderboard() {
+  let list;
+  try {
+    list = JSON.parse(localStorage.getItem(LEADERBOARD_KEY));
+  } catch (e) {
+    list = null;
+  }
+  if (!Array.isArray(list)) list = [];
+  return sortAndTrim(list);
+}
+
+function saveLeaderboard(list) {
+  const sorted = sortAndTrim(list);
+  try {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(sorted));
+  } catch (e) {
+    // ignore: storage unavailable/quota exceeded
+  }
+  return sorted;
+}
+
+function qualifiesForTop5(scoreValue) {
+  const list = loadLeaderboard();
+  if (list.length < 5) return true;
+  const lowest = list[list.length - 1];
+  return scoreValue > ((lowest && lowest.score) || 0);
+}
+
+function renderStats() {
+  bestComboEl.textContent = safeGetInt(BEST_COMBO_KEY);
+  maxLinesEl.textContent = safeGetInt(MAX_LINES_KEY);
+}
+
+function renderLeaderboard(highlightEntry, preloadedList) {
+  const list = preloadedList || loadLeaderboard();
+  leaderboardListEl.innerHTML = '';
+  if (!list.length) {
+    const empty = document.createElement('li');
+    empty.className = 'leaderboard-empty';
+    empty.textContent = 'No hay records aún';
+    leaderboardListEl.appendChild(empty);
+  } else {
+    list.forEach((entry, i) => {
+      const li = document.createElement('li');
+      li.className = 'leaderboard-entry';
+      if (highlightEntry && entry.date === highlightEntry.date && entry.score === highlightEntry.score) {
+        li.classList.add('top-entry-new');
+      }
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = `${i + 1}.`;
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = entry.name;
+      const scoreSpan = document.createElement('span');
+      scoreSpan.className = 'score';
+      scoreSpan.textContent = (entry.score || 0).toLocaleString();
+      li.appendChild(rank);
+      li.appendChild(name);
+      li.appendChild(scoreSpan);
+      leaderboardListEl.appendChild(li);
+    });
+  }
+  renderStats();
+}
+
+function saveNewRecord() {
+  const rawName = playerNameInput.value.trim();
+  const name = rawName || 'Jugador';
+  const entry = { name, score, lines, level, date: new Date().toISOString() };
+  const list = loadLeaderboard();
+  list.push(entry);
+  const sorted = saveLeaderboard(list);
+  newRecordBox.classList.add('hidden');
+  playerNameInput.value = '';
+  renderLeaderboard(entry, sorted);
+  if (highlightTimeoutId) clearTimeout(highlightTimeoutId);
+  highlightTimeoutId = setTimeout(() => {
+    highlightTimeoutId = null;
+    renderLeaderboard();
+  }, NEW_RECORD_HIGHLIGHT_MS);
 }
 
 function randomPiece(forceBomb) {
@@ -124,6 +251,11 @@ function clearLines() {
     if (Math.floor(lines / BOMB_LINES_INTERVAL) > Math.floor(prevLines / BOMB_LINES_INTERVAL)) {
       bombPending = true;
     }
+    const bestCombo = safeGetInt(BEST_COMBO_KEY);
+    if (cleared > bestCombo) {
+      safeSetItem(BEST_COMBO_KEY, String(cleared));
+    }
+    renderStats();
     updateHUD();
   }
 }
@@ -304,6 +436,21 @@ function endGame() {
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+
+  const maxLinesSoFar = safeGetInt(MAX_LINES_KEY);
+  if (lines > maxLinesSoFar) {
+    safeSetItem(MAX_LINES_KEY, String(lines));
+  }
+
+  if (qualifiesForTop5(score)) {
+    playerNameInput.value = '';
+    newRecordBox.classList.remove('hidden');
+    setTimeout(() => playerNameInput.focus(), 0);
+  } else {
+    newRecordBox.classList.add('hidden');
+  }
+  renderLeaderboard();
+
   overlay.classList.remove('hidden');
 }
 
@@ -354,6 +501,12 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  newRecordBox.classList.add('hidden');
+  playerNameInput.value = '';
+  if (highlightTimeoutId) {
+    clearTimeout(highlightTimeoutId);
+    highlightTimeoutId = null;
+  }
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
@@ -385,6 +538,26 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+saveRecordBtn.addEventListener('click', saveNewRecord);
+
+playerNameInput.addEventListener('keydown', e => {
+  if (e.code === 'Enter') {
+    e.stopPropagation();
+    saveNewRecord();
+  }
+});
+
+resetLeaderboardBtn.addEventListener('click', () => {
+  safeRemoveItem(LEADERBOARD_KEY);
+  safeRemoveItem(BEST_COMBO_KEY);
+  safeRemoveItem(MAX_LINES_KEY);
+  if (highlightTimeoutId) {
+    clearTimeout(highlightTimeoutId);
+    highlightTimeoutId = null;
+  }
+  renderLeaderboard();
+});
+
 function applyTheme(theme) {
   document.body.classList.toggle('light', theme === 'light');
   themeToggle.checked = theme === 'light';
@@ -397,6 +570,13 @@ themeToggle.addEventListener('change', () => {
   applyTheme(theme);
 });
 
-applyTheme(localStorage.getItem('theme') || 'dark');
+let savedTheme;
+try {
+  savedTheme = localStorage.getItem('theme');
+} catch (e) {
+  savedTheme = null;
+}
+applyTheme(savedTheme || 'dark');
 
+renderLeaderboard();
 init();

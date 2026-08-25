@@ -45,6 +45,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
 - **Toggle de tema claro/oscuro**: modo oscuro por defecto, con un switch en el panel lateral para cambiar a modo claro. La preferencia se guarda en `localStorage`.
+- **Tabla de records (Top 5)**: panel lateral con las 5 mejores puntuaciones guardadas localmente, más las estadísticas de mejor combo (líneas simultáneas) y máximo de líneas alcanzadas en una partida. Al perder, si la puntuación entra en el top 5 se pide el nombre del jugador para guardarla, resaltando la fila recién añadida.
 
 ---
 
@@ -100,8 +101,8 @@ El juego se compone de tres archivos que cooperan:
 Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
-- Un panel lateral con el switch de tema (`#theme-toggle`), `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un panel lateral con el switch de tema (`#theme-toggle`), `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza, la tabla de records **TOP 5** (`#leaderboard-list`, stats de mejor combo/máx. líneas y botón `#reset-leaderboard-btn`) y la lista de controles.
+- Un overlay para los estados **PAUSA** y **GAME OVER**, que en Game Over puede incluir el formulario de nuevo record (`#new-record-box`: input de nombre + botón `#save-record-btn`).
 
 ### 2. `style.css`
 
@@ -122,6 +123,7 @@ Contiene toda la lógica del juego. A grandes rasgos:
 - **Ghost piece** (`ghostY`): proyecta la posición final de la pieza actual hacia abajo y la dibuja con `globalAlpha = 0.2`.
 - **Power-up bomba** (`randomPiece(forceBomb)`, `explodeBomb`, `drawBombBlock`, `drawExplosion`): `clearLines` detecta cuándo el contador de `lines` cruza un múltiplo de `BOMB_LINES_INTERVAL` (5) y marca `bombPending`; `spawn` consume esa marca para generar la siguiente pieza como bomba (un único bloque con color especial `BOMB_COLOR`, dibujado con un pulso). Al fijarse, `lockPiece` la enruta a `explodeBomb()` en vez de `merge()`: vacía las celdas del área 3×3 centrada en su posición final (recortada a los bordes del tablero), suma `BOMB_SCORE_PER_CELL` puntos por celda despejada y guarda el estado en `explosion` para que `draw()` dibuje un breve destello (`drawExplosion`, con fade-out de `EXPLOSION_DURATION` ms).
 - **Tema claro/oscuro** (`applyTheme`): alterna la clase `light` en `<body>` según el estado del switch `#theme-toggle`, persiste la elección en `localStorage` (clave `theme`) y por defecto usa modo oscuro si no hay preferencia guardada. El color de la grilla del canvas (`drawGrid`) se lee dinámicamente de la variable CSS `--grid-line-color` para respetar el tema activo.
+- **Tabla de records (Top 5)** (`loadLeaderboard`, `saveLeaderboard`, `renderLeaderboard`, `qualifiesForTop5`, `saveNewRecord`): el top 5 se guarda como un array JSON en `localStorage['tetris-leaderboard']` (siempre ordenado por puntuación descendente y truncado a 5 elementos; una clave ausente o con JSON inválido se trata como lista vacía sin lanzar error). `renderLeaderboard()` vuelca esa lista y las estadísticas al DOM y se invoca al cargar la página, tras cada línea despejada (para refrescar el combo en vivo) y tras guardar/resetear records. `clearLines()` compara el número de líneas despejadas de una sola vez contra `localStorage['tetris-best-combo']` y lo actualiza si es mayor; `endGame()` hace lo propio con el total de líneas de la partida contra `localStorage['tetris-max-lines']`. Si al perder la puntuación califica para el top 5 (`qualifiesForTop5`), `endGame()` muestra el formulario de nombre dentro del overlay; al guardar (`saveNewRecord`) se añade `{name, score, lines, level, date}` a la lista, se persiste y la fila nueva se resalta temporalmente (`.top-entry-new`) en el panel. El botón "Resetear records" borra las tres claves de `localStorage` y vuelve a renderizar el estado vacío.
 
 ### Flujo del juego
 
@@ -185,6 +187,15 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `BOMB_SCORE_PER_CELL` | Puntos por celda destruida por la bomba | `20`         |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
+
+### `localStorage`
+
+| Clave                  | Contenido                                                          |
+| ----------------------- | ------------------------------------------------------------------- |
+| `theme`                 | `'light'` o `'dark'`, preferencia del toggle de tema.               |
+| `tetris-leaderboard`    | Array JSON (máx. 5) de `{name, score, lines, level, date}`, top 5.  |
+| `tetris-best-combo`     | Entero: mayor cantidad de líneas despejadas de una sola vez.        |
+| `tetris-max-lines`      | Entero: mayor total de líneas alcanzado en una partida.             |
 
 ---
 
