@@ -43,7 +43,8 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Vista previa** de la siguiente pieza.
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
-- **Pausa** y **Game Over** con opción de reinicio.
+- **Menú de pausa** completo (`P` o `Esc`): reanudar, reiniciar, lista de controles desplegable y selector de nivel inicial (1–9, persistido en `localStorage`). Mientras está abierto, el teclado de juego queda bloqueado.
+- **Game Over** con opción de reinicio.
 - **Toggle de tema claro/oscuro**: modo oscuro por defecto, con un switch en el panel lateral para cambiar a modo claro. La preferencia se guarda en `localStorage`.
 
 ---
@@ -81,13 +82,15 @@ Después abre `http://localhost:8000` en el navegador.
 
 ## Controles
 
-| Tecla     | Acción                            |
-| --------- | --------------------------------- |
-| `←` / `→` | Mover la pieza horizontalmente    |
-| `↑` o `X` | Rotar la pieza en sentido horario |
-| `↓`       | Soft drop (bajar más rápido)      |
-| `Espacio` | Hard drop (caída instantánea)     |
-| `P`       | Pausar / reanudar                 |
+| Tecla        | Acción                            |
+| ------------ | ---------------------------------- |
+| `←` / `→`    | Mover la pieza horizontalmente     |
+| `↑` o `X`    | Rotar la pieza en sentido horario  |
+| `↓`          | Soft drop (bajar más rápido)       |
+| `Espacio`    | Hard drop (caída instantánea)      |
+| `P` / `Esc`  | Abrir/cerrar el menú de pausa      |
+
+Con el menú de pausa abierto puedes: **Reanudar** la partida, **Reiniciar** (usando el nivel inicial seleccionado), desplegar **"Ver controles"** para repasar esta misma tabla dentro del menú, y elegir el **nivel inicial** (1–9) para la próxima partida.
 
 ---
 
@@ -101,7 +104,8 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con el switch de tema (`#theme-toggle`), `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un overlay (`#overlay`) para el estado **GAME OVER**.
+- Un overlay independiente (`#pause-overlay`) para el **menú de pausa**, con botones de reanudar/reiniciar, lista de controles desplegable y el `<select id="start-level-select">` de nivel inicial.
 
 ### 2. `style.css`
 
@@ -118,10 +122,11 @@ Contiene toda la lógica del juego. A grandes rasgos:
 - **Game loop** (`loop`): basado en `requestAnimationFrame`, acumula el tiempo transcurrido y baja la pieza una fila cuando se supera `dropInterval`.
 - **Limpieza de líneas** (`clearLines`): recorre el tablero de abajo hacia arriba; cada fila completa se elimina y se inserta una vacía en la cima.
 - **Puntuación**: usa la tabla clásica `[0, 100, 300, 500, 800]` multiplicada por el nivel actual; el hard drop suma 2 puntos por celda recorrida y el soft drop 1 punto por fila.
-- **Nivel y velocidad**: el nivel sube cada 10 líneas; la velocidad de caída se calcula como `max(100, 1000 − (level − 1) × 90)` milisegundos.
+- **Nivel y velocidad**: `level = startLevel + floor(lines / 10)`, es decir, el nivel sube cada 10 líneas pero partiendo del nivel inicial elegido en el menú de pausa (no siempre desde 1); la velocidad de caída se calcula con el helper compartido `dropIntervalForLevel(level)` como `max(100, 1000 − (level − 1) × 90)` milisegundos, usado tanto en `clearLines()` como en `init()`.
 - **Ghost piece** (`ghostY`): proyecta la posición final de la pieza actual hacia abajo y la dibuja con `globalAlpha = 0.2`.
 - **Power-up bomba** (`randomPiece(forceBomb)`, `explodeBomb`, `drawBombBlock`, `drawExplosion`): `clearLines` detecta cuándo el contador de `lines` cruza un múltiplo de `BOMB_LINES_INTERVAL` (5) y marca `bombPending`; `spawn` consume esa marca para generar la siguiente pieza como bomba (un único bloque con color especial `BOMB_COLOR`, dibujado con un pulso). Al fijarse, `lockPiece` la enruta a `explodeBomb()` en vez de `merge()`: vacía las celdas del área 3×3 centrada en su posición final (recortada a los bordes del tablero), suma `BOMB_SCORE_PER_CELL` puntos por celda despejada y guarda el estado en `explosion` para que `draw()` dibuje un breve destello (`drawExplosion`, con fade-out de `EXPLOSION_DURATION` ms).
 - **Tema claro/oscuro** (`applyTheme`): alterna la clase `light` en `<body>` según el estado del switch `#theme-toggle`, persiste la elección en `localStorage` (clave `theme`) y por defecto usa modo oscuro si no hay preferencia guardada. El color de la grilla del canvas (`drawGrid`) se lee dinámicamente de la variable CSS `--grid-line-color` para respetar el tema activo.
+- **Menú de pausa** (`togglePause`): al pulsar `P` o `Esc` (ambas teclas comparten el mismo listener) se alterna `paused` y se muestra/oculta `#pause-overlay` — mientras esté visible, `paused` permanece `true`, por lo que el guard `if (paused || gameOver) return;` del listener de teclado bloquea el resto de acciones de juego. Sus controles: **Reanudar** repite el mismo camino que pulsar `P`/`Esc` estando en pausa; **Reiniciar** llama a `init()` y cierra el menú, dejando la partida corriendo (no en pausa); **"Ver controles"** alterna la clase `hidden` de una lista `<ul>` con los mismos atajos que el panel lateral; el `<select id="start-level-select">` (niveles 1–9) persiste su valor en `localStorage` (clave `tetris-start-level`) y `init()` lo lee (`getStartLevel()`) para fijar `startLevel`, `level` y `dropInterval` (`dropIntervalForLevel(level)`) al arrancar una partida nueva; `clearLines()` calcula el nivel como `startLevel + floor(lines / 10)`, así que el nivel inicial elegido persiste durante toda la partida en vez de perderse al despejar la primera línea.
 
 ### Flujo del juego
 
