@@ -45,6 +45,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
 - **Toggle de tema claro/oscuro**: modo oscuro por defecto, con un switch en el panel lateral para cambiar a modo claro. La preferencia se guarda en `localStorage`.
+- **Skins visuales**: selector con 4 estilos de renderizado de bloques — **Retro** (el look clásico, por defecto), **Neon** (bloques con efecto de brillo/`glow`), **Pastel** (colores suaves y esquinas redondeadas) y **Pixel art** (textura de sub-cuadrícula sobre el color base). El cambio se aplica al instante, sin recargar la página, y la elección se guarda en `localStorage`.
 
 ---
 
@@ -100,18 +101,19 @@ El juego se compone de tres archivos que cooperan:
 Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
-- Un panel lateral con el switch de tema (`#theme-toggle`), `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
+- Un panel lateral con el switch de tema (`#theme-toggle`), el selector de skin (`#skin-select`), `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
 - Un overlay para los estados **PAUSA** y **GAME OVER**.
 
 ### 2. `style.css`
 
-Aporta el aspecto visual con estética _retro arcade_, con **modo oscuro por defecto**. Todos los colores están definidos como variables CSS (custom properties) en `:root`; la clase `body.light` las sobrescribe para el modo claro. Incluye tipografía monoespaciada para los marcadores, _backdrop blur_ en los overlays y los estilos del switch de tema (`.switch`).
+Aporta el aspecto visual con estética _retro arcade_, con **modo oscuro por defecto**. Todos los colores están definidos como variables CSS (custom properties) en `:root`; la clase `body.light` las sobrescribe para el modo claro. Incluye tipografía monoespaciada para los marcadores, _backdrop blur_ en los overlays, los estilos del switch de tema (`.switch`) y el estilo del selector de skin (`.skin-select select`), que también usa las variables de tema para integrarse con modo claro/oscuro.
 
 ### 3. `game.js`
 
 Contiene toda la lógica del juego. A grandes rasgos:
 
 - **Modelo del tablero**: una matriz `ROWS × COLS` donde cada celda guarda `0` (vacía) o un índice de color (1–8) que identifica la pieza.
+- **Skins** (`SKINS`, `activeSkin`, `currentColors()`): en vez de un array `COLORS` fijo, la paleta de colores vive en `SKINS`, un registro con una entrada por skin (`retro`, `neon`, `pastel`, `pixel`), cada una con un array `colors` del mismo largo e índices que el `COLORS` original (`0` vacío, `1`–`8` piezas, `9` bomba). `activeSkin` guarda el skin activo y `currentColors()` devuelve su paleta; `BOMB_COLOR` se calcula sobre el largo de una paleta (todas miden lo mismo). `drawBlock` bifurca según `activeSkin` hacia una función de dibujo por skin (`drawRetroBlock`, `drawNeonBlock`, `drawPastelBlock`, `drawPixelBlock`): Retro dibuja el `fillRect` plano de siempre con el highlight superior; Neon aplica `shadowBlur`/`shadowColor` para el efecto de brillo (reseteando `shadowBlur = 0` tras cada bloque para que no se filtre a otros elementos); Pastel usa `context.roundRect` para esquinas redondeadas; Pixel dibuja una sub-cuadrícula 3×3 con sombras alternadas sobre el relleno base para simular una textura pixelada. `drawBombBlock`, `drawExplosion` y `drawGrid` son compartidos y no cambian entre skins (limitación deliberada). El skin elegido se persiste en `localStorage` (clave `tetris-skin`) y se aplica sin recargar la página.
 - **Piezas**: definidas como matrices cuadradas, donde `0` marca una celda vacía dentro de la forma. Para rotar se calcula la transposición + reverso de filas (`rotateCW`). La pieza `N` (tuerca) usa este mismo mecanismo de "hueco = 0" para su celda central, sin necesitar lógica especial.
 - **Detección de colisiones** (`collide`): comprueba que ninguna celda de la pieza salga del tablero ni se solape con bloques ya fijados.
 - **Wall kicks** (`tryRotate`): si la rotación choca, intenta desplazar la pieza ±1 y ±2 columnas antes de descartar el giro.
@@ -178,7 +180,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 9 colores (incl. bomba) |
+| `SKINS`        | Registro de paletas por skin (`retro`/`neon`/`pastel`/`pixel`) | 4 skins × 9 colores (incl. bomba) |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 | `BOMB_LINES_INTERVAL` | Líneas entre apariciones de la bomba | `5`             |
