@@ -39,6 +39,24 @@
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
 
+        <div class="panel-section leaderboard-section">
+          <span class="label">TOP 5</span>
+          <ol class="leaderboard-list" id="leaderboard-list">
+            <li class="leaderboard-empty">No hay records aún</li>
+          </ol>
+          <div class="leaderboard-stats">
+            <div class="leaderboard-stat">
+              <span class="label">MEJOR COMBO</span>
+              <span class="value leaderboard-stat-value" id="best-combo">0</span>
+            </div>
+            <div class="leaderboard-stat">
+              <span class="label">MÁX. LÍNEAS</span>
+              <span class="value leaderboard-stat-value" id="max-lines">0</span>
+            </div>
+          </div>
+          <button id="reset-leaderboard-btn" type="button">Resetear records</button>
+        </div>
+
         <div class="panel-section controls">
           <span class="label">CONTROLS</span>
           <ul>
@@ -56,6 +74,11 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="new-record-box" class="new-record-box hidden">
+          <label for="player-name-input" class="label">¡Nuevo record! Ingresa tu nombre</label>
+          <input type="text" id="player-name-input" maxlength="12" placeholder="Jugador" />
+          <button id="save-record-btn" type="button">Guardar</button>
+        </div>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
